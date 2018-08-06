@@ -38,12 +38,9 @@ let mainWindow, prefWindow;
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', function() {
-
-	//On application start-up, run containerCheck
-	containerCheck();
-
 	//Ensure settings are initialized on startup
-	settingSetup();
+	
+	//reloadMainWindow()
 
 	// Load the previous state with fallback to defaults
 	let mainWindowState = windowStateKeeper({
@@ -68,7 +65,13 @@ app.on('ready', function() {
 	});
 
 	//Load the webpage
-	mainWindow.loadURL(`file://${__dirname}/index.html`);
+	//mainWindow.loadURL(`file://${__dirname}/index.html`);
+	setContainerState(false);
+	reloadMainWindow()
+	
+	//On application start-up, run containerCheck
+	containerCheck();
+	settingSetup();
 
 	// Emitted when the window is closed.
 	mainWindow.on('closed', () => {
@@ -107,6 +110,51 @@ app.on('activate', () => {
 
 
 /* User Interface Functions */
+// function to load main window page. page is the name of html file
+function loadMainWindowPage(page) {
+	switch(page) {
+		case 'index':
+			mainWindow.loadURL(`file://${__dirname}/index.html`);
+			console.log('mainwindows load index ')
+			break;
+		case 'init':
+			mainWindow.loadURL(`file://${__dirname}/init.html`);
+			console.log('mainwindows load init ')
+			break;
+		case 'preferences':
+			mainWindow.loadURL(`file://${__dirname}/preferences.html`);	
+			console.log('mainwindows load preference ')
+			break;
+		default:
+			console.log('mainwindows load fail. no such page ')
+	}
+};
+
+function setContainerState(state) {
+	switch (state) {
+		case true:
+			settings.set('state',  'run');
+			console.log('Set Current State', 'run')
+			break;
+		default:
+			settings.set('state', 'norun');
+			console.log('Set Current State', 'norun')
+			break;
+	}
+};
+
+function reloadMainWindow() {
+	var state = settings.get('state')
+	switch (state) {
+		case 'run': 
+			loadMainWindowPage('index')
+			break;
+		default:
+			loadMainWindowPage('init')
+			break;
+	}
+};
+
 
 //Create the preferences window
 function createPreferencesWindow(){
@@ -154,6 +202,7 @@ function settingSetup(){
 	if(settings.get('network') === undefined){ settings.set('network', 'bitmark'); }
 	if(settings.get('auto_update') === undefined){ settings.set('auto_update', true); }
 	if(settings.get('directory') === undefined){ settings.set('directory', dataDir); }
+	if(settings.get('state') === undefined){ settings.set('state', 'norun'); }
 };
 
 //Pull update if auto_update is on
@@ -165,7 +214,6 @@ function autoUpdateCheck(){
 		pullUpdate();
 	}
 };
-
 
 /* Terminal Calling Functions */
 
@@ -180,17 +228,23 @@ function containerCheck(){
 	exec("docker inspect -f '{{.State.Running}}' bitmarkNode", (err, stdout, stderr) => {
 	  //If the container is not setup, create it
 	  if (err) {
-	  	createContainerHelper();
-	  	mainWindow.reload();
+		  console.log('inspect Docker faled');
+		createContainerHelper();
+	  	//mainWindow.reload();
 	  }
 
 	  //If the container is stopped, start it
 	  var str = stdout.toString().trim();
 	  if(str === "false"){
 		startBitmarkNode_noNotif();
-		mainWindow.reload();
+		//mainWindow.reload();
 	  }
+		  setContainerState(true)
+		  reloadMainWindow()
+	  //reloadMainWindow()
 	});
+	
+
 };
 
 // Start the bitmarkNode Docker container
@@ -233,14 +287,17 @@ function startBitmarkNode_noNotif(){
 	//Start the container named bitmarkNode
 	exec("docker start bitmarkNode", (err, stdout, stderr) => {
 	  if (err) {
-	    // node couldn't execute the command
+		// node couldn't execute the command
+		setContainerState(false);
+		reloadMainWindow()
 	    console.log("Failed to start container");
 	    return;
 	  }
-
+	  setContainerState(true);
 	  console.log(`${stdout}`);
 	  //Reload mainWindow
-	  mainWindow.reload();
+	  //mainWindow.reload();
+	  reloadMainWindow()
 	});
 };
 
@@ -334,18 +391,24 @@ function createContainer(ip, net, dir, isWin){
 	    	//Run the command
 	    	exec(command, (err, stdout, stderr) => {
 	    		if (err) {
+					setContainerState(false)
+					reloadMainWindow();
 	        		console.log("Failed to create container");
-	        		newNotification("The Docker container failed to be created. Ensure you're connected to the Internet and Docker is running properly.");
+					newNotification("The Docker container failed to be created. Ensure you're connected to the Internet and Docker is running properly.");
+	
 	        		return;
 	    		}
 
-	    		console.log(`${stdout}`);
+				console.log(`${stdout}`);
+				setContainerState(true)
+				reloadMainWindow();
 	    		newNotification("The Docker container was created successfully. Please refresh you window.");
 	    	});
 		});
 	});
 	//Reload the window when completed
-	mainWindow.reload();
+	//mainWindow.reload();
+
 };
 
 
@@ -353,12 +416,13 @@ function createContainer(ip, net, dir, isWin){
 function pullUpdate(){
 
 	newNotification("Checking for updates. This may take some time.");
-
 	//Pull updates from the docker bitmark-node repo
 	exec("docker pull bitmark/bitmark-node", (err, stdout, stderr) => {
 	  if (err) {
-	    // node couldn't execute the command
-	    console.log("Failed to pull update");
+		// node couldn't execute the command
+		setContainerState(false)
+		reloadMainWindow()
+		console.log("Failed to pull update");
 	    newNotification("There was an error checking for an update. Please check your Internet connection and restart the Docker application.");
 	    return;
 	  }
@@ -368,19 +432,25 @@ function pullUpdate(){
 
 	  //Check to see if the up to date text is present
 	  if(str.indexOf("Image is up to date for bitmark/bitmark-node") !== -1){
-	  	console.log("No Updates");
+		console.log("No Updates");
 	  	newNotification("No updates to the Bitmark Node software have been found.");
 	  }
 	  //Check to see if the updated text is present
 	  else if(str.indexOf("Downloaded newer image for bitmark/bitmark-node") !== -1){
 	  	console.log("Updated");
 	  	newNotification("The Bitmark Node software has downloaded. Installing updates now.");
-	  	createContainerHelper();
+		createContainerHelper();
+		setContainerState(true);
+		reloadMainWindow();
 	  	newNotification("The Bitmark Node software has been updated.");
 	  }else{
-	  	console.log("Unknown update error");
+		console.log("Unknown update error");
+		setAppState('failUpdate')
+		setContainerState(false);
+		reloadMainWindow();
 	  	newNotification("There was an error checking for an update. Please check your Internet connection and restart the Docker application.");
 	  }
+
 	});
 };
 
