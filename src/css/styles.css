@@ -4,6 +4,16 @@ body {
   background-color: white;
 }
 
+.menuDescr:hover span {
+  display: block;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.menuDescr span {
+  display: none;
+}
+
 /* IFrame to display Bitmark Node */
 .frame {
   display: block;

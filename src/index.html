@@ -24,17 +24,38 @@
     <div class="sidenav">
       <img draggable="false" src="assets/icons/bitmark-logo.svg" class="image-text"/>
       <hr width="65%">
-      <a onClick="startBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;">Start Container</a>
-      <a onClick="stopBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;">Stop Container</a>
-      <a onClick="restartBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;">Restart Container</a>
+      <a onClick="startBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Start Container
+        <span>If the container is stopped, this will start the container. It will do nothing if the container is not setup, or already running</span>
+      </a>
+      <a onClick="stopBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Stop Container
+        <span>If the container is running, this will stop the container. It will do nothing if the container is not setup, or already stopped</span>
+      </a>
+      <a onClick="restartBitmarkNodeLocal();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Restart Container
+        <span>This will start the containerif it is not running, or restart the container if it is running. This will apply any updates installed manually</span>
+      </a>
       <hr width="50%">
-      <a onClick="setNetworkBitmark();" style="cursor: pointer; cursor: hand;">Switch to Bitmark</a>
-      <a onClick="setNetworkTesting();" style="cursor: pointer; cursor: hand;">Switch to Testing</a>
+      <a onClick="setNetworkBitmark();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Switch to Bitmark
+        <span>If the network is set to 'testing', this will restart the container on the 'bitmark' network. If it is already running on 'bitmark', it will do nothing</span>
+      </a>
+      <a onClick="setNetworkTesting();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Switch to Testing
+        <span>Check for updates. If an update is found, it will automatically be installed and the container will restart</span>
+      </a>
       <hr width="50%">
-      <a onClick="pullUpdate();" style="cursor: pointer; cursor: hand;">Check for Updates</a>
+      <a onClick="pullUpdate();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Check for Updates
+        <span>Show the application preferences menu. From here you can manage automatic updates</span>
+      </a>
       <hr width="50%">
-      <a onClick="createPreferencesWindowLocal();" style="cursor: pointer; cursor: hand;">Show Preferences</a>
-      <a onClick="refreshWindow();" style="cursor: pointer; cursor: hand;">Refresh Window</a>
+      <a onClick="createPreferencesWindowLocal();" style="cursor: pointer; cursor: hand;" class="menuDescr">Show Preferences</a>
+      <a onClick="refreshWindow();" style="cursor: pointer; cursor: hand;" class="menuDescr">
+        Refresh Window
+        <span>Refresh the application window. After initial setup, the container window will not refresh after changes, and must be done manually</span>
+      </a>
       <hr width="65%">      
       <sub>Bitmark Inc. 2018</sub>
     </div>
