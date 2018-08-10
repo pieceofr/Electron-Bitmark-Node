@@ -2,66 +2,85 @@ const { ipcRenderer, remote } = require('electron');
 
 /* Sidebar Functions */
 
+function checkProgBlock() {
+	if (getProgState() == PROGSTATE.BLOCK) {
+		console.log("program is in block state, ignore executions");
+		return;
+	}
+}
+
 //Calls startBitmarkNode located in main.js and refreshes the iFrame
 function startBitmarkNodeLocal(){
 	//Get the promise from startBitmarkNode and refresh the frame
+	checkProgBlock();
+	setProgState(PROGSTATE.BLOCK);
 	startBitmarkNode().then((result) => {
 		console.log('Success', result);
+		setProgState(PROGSTATE.NORMAL);
 		setTimeout(refreshFrame, 1000);
 	}, (error) => {
+		setProgState(PROGSTATE.NORMAL);
 		console.log('Error', error);
 	});
 };
 
 //calls stopBitmarkNode located in main.js
 function stopBitmarkNodeLocal(){
-
+	checkProgBlock();
+	setProgState(PROGSTATE.BLOCK);
 	//Get the promise from stopBitmarkNode and refresh the frame
 	stopBitmarkNode().then((result) => {
 		console.log('Success', result);
+		setProgState(PROGSTATE.NORMAL);
 		setTimeout(refreshFrame, 1000);
 	}, (error) => {
+		setProgState(PROGSTATE.NORMAL);
 		console.log('Error', error);
 	});
 };
 
 function restartBitmarkNodeLocal(){
+	checkProgBlock();
+	setProgState(PROGSTATE.BLOCK);
   newNotification("Restarting container. This may take some time.");
-
   //Get the promise from createContainerHelperLocal and refresh the frame
   createContainerHelperLocal().then((result) => {
     console.log('Success', result);
-    console.log('Container Created');
+		setProgState(PROGSTATE.NORMAL);
     setTimeout(refreshFrame, 1000);
   }, (error) => {
+		setProgState(PROGSTATE.NORMAL);
     console.log('Error', error);
   });
 };
 
 //Changes the network to Bitmark if it current isn't on it
 function setNetworkBitmarkLocal(){
+	checkProgBlock();
 	// Fetch the user's preferred network
 	const settings = require('electron').remote.require('electron-settings');
 	var network = settings.get('network');
-
+	setProgState(PROGSTATE.BLOCK);
 	//Checks the network
 	if(network === "testing"){
 		//Update network
 		settings.set('network', 'bitmark');
+		setProgState(PROGSTATE.NORMAL);
 		console.log("Changing to bitmark");
 		
 		//Lets the user know what is happening
 		newNotification("Changing the network to 'bitmark'. This may take some time.");
-		
 		//Get the promise from createContainerHelperLocal and refresh the frame
 		createContainerHelperLocal().then((result) => {
-		  console.log('Success', result);
+			console.log('Success', result);
+			setProgState(PROGSTATE.NORMAL);
 		  setTimeout(refreshFrame, 1000);
 		}, (error) => {
 		  console.log('Error', error);
 		});
 	} else {
 		//Let the user know the network is already bitmark
+		setProgState(PROGSTATE.NORMAL);
 		console.log("Already on bitmark");
 		newNotification("The network is already set to 'bitmark'.");
 	}
@@ -69,10 +88,11 @@ function setNetworkBitmarkLocal(){
 
 //Changes the network to testing if it current isn't on it
 function setNetworkTestingLocal(){
+	checkProgBlock();
 	// Fetch the user's preferred network
 	const settings = require('electron').remote.require('electron-settings');
 	var network = settings.get('network');
-
+	setProgState(PROGSTATE.BLOCK);
 	//Checks the network
 	if(network === "bitmark"){
 		//Update network
@@ -84,24 +104,31 @@ function setNetworkTestingLocal(){
 		
 		//Get the promise from createContainerHelperLocal and refresh the frame
 		createContainerHelperLocal().then((result) => {
-		  console.log('Success', result);
+			setProgState(PROGSTATE.NORMAL);
+			console.log('Success', result);
 		  setTimeout(refreshFrame, 1000);
 		}, (error) => {
+			setProgState(PROGSTATE.NORMAL);
 		  console.log('Error', error);
 		});
 	} else {
 		//Let the user know the network is already testing
+		setProgState(PROGSTATE.NORMAL);
 		console.log("Already on testing");
 		newNotification("The network is already set to 'testing'.");
 	}
 };
 
 function pullUpdateLocal(){
+	checkProgBlock();
+	setProgState(PROGSTATE.BLOCK);
 	//Get the promise from pullUpdate and refresh the frame (a success only occurs when an update is found)
 	pullUpdate().then((result) => {
+		setProgState(PROGSTATE.NORMAL);
 		console.log('Success', result);
 		setTimeout(refreshFrame, 1000);
 	}, (error) => {
+		setProgState(PROGSTATE.NORMAL);
 		console.log('Error', error)
 	});
 };

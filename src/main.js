@@ -7,6 +7,8 @@ const ipc = electron.ipcMain //IPC used to display context menu (hamburger menu)
 const path = require('path'); //Used to interact with file paths
 const os = require('os'); //Used to determine the user's current OS
 var fs = require('fs'); //Used to check to see if directories exist/create ones
+//var msg = require('msg'); //Used to check to see if directories exist/create ones
+var textMsg = require('./msg');
 
 //Packages (Name - Use (Link))
 const settings = require('electron-settings'); //Electron-Settings - Used to store user settings (https://github.com/nathanbuchar/electron-settings)
@@ -15,6 +17,8 @@ const notifier = require('node-notifier'); //Notifications (https://www.npmjs.co
 const { exec } = require('child_process'); //Electron Default Child Process - Used to run CLI commands
 const windowStateKeeper = require('electron-window-state'); //Electron-Window-State - Keep window state from instances of program (https://www.npmjs.com/package/electron-window-state)
 const userHome = require('user-home'); //User-Home (https://github.com/sindresorhus/user-home)
+var Enum = require('node-enums');
+var PROGSTATE = Enum(['NORMAL','NOTLOGIN','BLOCK']);
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) { // eslint-disable-line global-require
@@ -33,18 +37,20 @@ if(isWin){
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow, prefWindow;
+var containerState, prevState;
+var progState;
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', function() {
-
+	settingSetup();
 	// Load the previous state with fallback to defaults
 	let mainWindowState = windowStateKeeper({
 	  defaultWidth: 1200,
 	  defaultHeight: 800
 	});
-		
+	
 	// Create the window using the state information
 	mainWindow = new BrowserWindow({
 		// Set window location and size as what is was on close
@@ -76,13 +82,13 @@ app.on('ready', function() {
 	// Let us register listeners on the window, so we can update the state
 	// automatically (the listeners will be removed when the window is closed)
 	// and restore the maximized or full screen state
-	mainWindowState.manage(mainWindow);
+//	mainWindowState.manage(mainWindow);
 
+	reloadMainWin();
 	//On application start-up, run containerCheck
 	containerCheck();
 
 	//Ensure settings are initialized on startup
-	settingSetup();
 
 	//Check for check for updates if auto update is on after 2 seconds
 	setTimeout(autoUpdateCheck, 2000);
@@ -156,25 +162,55 @@ function settingSetup(){
 	if(settings.get('auto_ip') === undefined){ settings.set('auto_ip', true); }
 	if(settings.get('ip') === undefined){ settings.set('ip', `xxx.xxx.xxx.xxx`); }
 	if(settings.get('directory') === undefined){ settings.set('directory', dataDir); }
+	if(containerState === undefined){containerState='norun';}
+	if(prevState === undefined){prevState='undefined';}
+	settings.set('progState', PROGSTATE.NORMAL.toString());
 };
 
 //Pull update if auto_update is on
 function autoUpdateCheck(){
 	//get the auto update value
 	const auto_update = settings.get('auto_update');
-	if(auto_update === true){
+	if (getProgState() == PROGSTATE.NOTLOGIN.toString()) {
+		return;
+	}
+	if(auto_update === true) {
 		console.log("Checking for updates with auto updater");
 		//Call pullUpdate and wait for the promise to return the result
 		pullUpdate().then((result) => {
 			//If it is a success (update installed) reload the window
+			setContainerState(true);
+			setProgState(PROGSTATE.NORMAL);
+			reloadMainWin();
 			console.log('Success', result);
-			mainWindow.reload();
+		//	mainWindow.reload();
 		}, (error) => {
 			console.log('Error', error)
+			setContainerState(false);
+			setProgState(PROGSTATE.NORMAL);
+			reloadMainWin();
 		});
 	}
 };
 
+function isContainerRunning() {
+  //Get the container status of bitmarkNode
+  return new Promise(function(){
+    exec("docker inspect -f '{{.State.Running}}' bitmarkNode", (err, stdout, stderr) => {
+      //If the container is not setup, create it (no container exist)
+      if (err) {
+        return false;
+      } else{
+         //If the container is stopped, start it
+        var str = stdout.toString().trim();
+        if(str === "true"){
+          return true;
+        }
+        return false;
+      }
+    });
+  });
+};
 
 /* Terminal Calling Functions */
 
@@ -191,18 +227,37 @@ function containerCheck(){
 	  if (err) {
 	  	//Call container helper and wait for the promise to reload the page on success
 	  	createContainerHelper().then((result) => {
+				setContainerState(true);
+				setProgState(PROGSTATE.NORMAL);
+				reloadMainWin();
 	  	  console.log('Success', result);
-	  	  mainWindow.reload();
+	  	  //mainWindow.reload();
 	  	}, (error) => {
+				console.log('containerCheck', error)
+				if (error == textMsg.msgNotLogin) { //not login
+					setProgState(PROGSTATE.NOTLOGIN);
+				} else {
+					setProgState(PROGSTATE.NORMAL);
+				}
+				setContainerState(false);
+				reloadMainWin();
 	  	  console.log('Error', error);
 	  	});
 	  }
-
 	  //If the container is stopped, start it
 	  var str = stdout.toString().trim();
 	  if(str.includes('false')){
-		startBitmarkNode_noNotif();
-		mainWindow.reload();
+			startBitmarkNode_noNotif().then((result) => {
+				setContainerState(true);
+				setProgState(PROGSTATE.NORMAL);
+				reloadMainWin();
+				console.log('Success', result);
+			}, (error)=> {
+				setContainerState(false);
+				setProgState(PROGSTATE.NORMAL);
+				reloadMainWin();
+				console.log('Error', error);
+			});
 	  }
 	});
 };
@@ -246,17 +301,18 @@ function startBitmarkNode(){
 // Start the bitmarkNode Docker container without a notification
 function startBitmarkNode_noNotif(){
 	//Start the container named bitmarkNode
-	exec("docker start bitmarkNode", (err, stdout, stderr) => {
-	  if (err) {
-	    // node couldn't execute the command
-	    console.log("Failed to start container");
-	    return;
-	  }
-
-	  console.log("Container started");
-	  //Reload mainWindow
-	  mainWindow.reload();
+	return new Promise((resolve, reject) => {
+		exec("docker start bitmarkNode", (err, stdout, stderr) => {
+			if (err) {
+				// node couldn't execute the command
+				reject("Failed to start container");
+				console.log("Failed to start container");
+			}
+			console.log("Container started");
+			resolve(`${stdout}`);
+		});
 	});
+
 };
 
 // Stop the bitmarkNode Docker container
@@ -321,7 +377,7 @@ function createContainerHelperIPOnly(net, dir, isWin){
 					if(auto_ip){
 						publicIp.v4().then(ip => {
 						  //Get the promise from createContainer and return the result
-						  createContainer(ip, net, dir, isWin).then((result) => {
+						  	createContainer(ip, net, dir, isWin).then((result) => {
 						  	resolve(result);
 						  }, (error) => {
 						  	reject(error);
@@ -343,7 +399,8 @@ function createContainerHelperIPOnly(net, dir, isWin){
 				//If the user is not logged in let them know, and quit
 				}else{
 					newNotification("Docker is not logged in. Please login into the Docker application and retry.");
-					reject("Docker is not logged in");
+					//reject("Docker is not logged in");
+					reject(textMsg.msgNotLogin);
 				}
 			});
 		//Create the container is the OS isn't windows
@@ -431,7 +488,7 @@ function pullUpdate(){
 		  //Check to see if the up to date text is present
 		  if(str.indexOf("Image is up to date for bitmark/bitmark-node") !== -1){
 		  	newNotification("No updates to the Bitmark Node software have been found.");
-		  	reject('No updates');
+		  	resolve('No updates');
 		  }
 		  //Check to see if the updated text is present
 		  else if(str.indexOf("Downloaded newer image for bitmark/bitmark-node") !== -1){
@@ -443,7 +500,7 @@ function pullUpdate(){
 		  	  resolve(result);
 		  	  newNotification("The Bitmark Node software has been updated.");
 		  	}, (error) => {
-		  	  resolve(error);
+		  	  reject(error);
 		  	});
 		  }else{
 		  	newNotification("There was an error checking for an update. Please check your Internet connection and restart the Docker application.");
@@ -482,6 +539,64 @@ function directoryCheckHelper(dir){
 	directoryCheck(data);
 	directoryCheck(datatest);
 };
+
+// State and related window setting
+function winLoadPage(page) {
+	switch(page) {
+		case 'index':
+		case 'message':
+		case 'preferences':
+			mainWindow.loadURL(`file://${__dirname}/`+ page + `.html`);	
+			console.log('mainwindows load  ', page, '.html')
+			break;
+		case 'test':
+			console.log('test.html ')
+			mainWindow.loadFile('test.html')
+			break;
+		default:
+			console.log('mainwindows load fail. no such page ')
+	}
+};
+
+function getState() {
+  return containerState;
+};
+function getPrevState() {
+  return prevState;
+};
+
+function setContainerState(state) {
+  prevState =  getState();
+  state ? containerState='run': containerState='norun';
+  console.log('setContainerState:', getState(), ' prev:',getPrevState())
+};
+
+
+function setProgState(state) {
+	settings.set('progState', state);
+};
+
+function getProgState() {
+	return settings.get('progState')
+};
+
+function reloadMainWin() {
+  console.log('reloadMainWin prevState:', getPrevState(), 'curState:', getState())
+  if (getState() ==  getPrevState()) { // state not change, do not need to reload page
+    console.log('no need to change ui')
+    return
+  }
+	switch (getState()) {
+		case 'run': 
+			//winLoadPage('index')
+			winLoadPage('index')
+			break;
+		default:
+      winLoadPage('message')
+			break;
+	}
+};
+
 
 //Create the file submenu
 var fileMenu = new Menu()

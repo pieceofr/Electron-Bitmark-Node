@@ -71,15 +71,23 @@
       <sub>Bitmark Inc. 2018</sub>
     </div>
     <div id="main" class="main"> 
-
-      <iframe src="http://localhost:9980" class="frame"></iframe>
-      <div class="main-text" id="main-text">THE DOCKER CONTAINER IS NOW DOWNLOADING, PLEASE WAIT A MOMENT</div>
+      <div class="main-text" id="main-text">。。。。。。</div>
     </div>
   </body>
   <script type="text/javascript">
     window.onload = function() {
       //Display div
-      document.getElementById('main-text').style.display = "block";
+     document.getElementById('main-text').style.display = "block";
+     //document.getElementById("main-text").innerHTML = "no login, please login";
+     switch (settings.get('progState')) {
+      case 'NOTLOGIN':
+        document.getElementById("main-text").innerHTML = "NO LOGIN, PLEASE LOGIN。 YOU CAN RESTART PROGRAM FIRST。";
+        break;
+      default:
+        document.getElementById("main-text").innerHTML = "BITMARK NODE IS PROCESSING, PLEASE WAIT A MOMENT";
+        break;
+      }
+
     };
 
     //Open all external links in browser - Uses JQuery
